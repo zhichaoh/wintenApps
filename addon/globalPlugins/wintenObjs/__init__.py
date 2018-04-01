@@ -2,7 +2,6 @@
 # Copyright 2015-2018 Joseph Lee, released under GPL.
 
 # Adds handlers for various UIA controls found in Windows 10.
-# Since May 2017, suggestions sounds are based on wave files produced by NV Access (copyright 2017).
 
 import os
 import globalPluginHandler
@@ -100,7 +99,7 @@ class SearchField(SearchField):
 		nvwave.playWaveFile(r"waves\suggestionsClosed.wav")
 
 # Contacts search field in People app and other places.
-# An ugly hack to prevent suggestion founds from repeating.
+# An ugly hack to prevent suggestion sounds from repeating.
 _playSuggestionsSounds = False
 
 # For UIA search fields that does not raise any controller for at all.
@@ -124,7 +123,7 @@ class MenuItemNoPosInfo(UIA):
 
 
 # For tool tips from universal apps and Edge.
-class UWPToolTip(ToolTip, UIA):
+class XAMLToolTip(ToolTip, UIA):
 
 	event_UIA_toolTipOpened=ToolTip.event_show
 
@@ -191,9 +190,12 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			# Menu items should never expose position info (seen in various context menus such as in Edge).
 			elif obj.UIAElement.cachedClassName == "MenuFlyoutItem":
 				clsList.insert(0, MenuItemNoPosInfo)
-			# #44: Recognize UWP tool tips.
+			# #44: Recognize XAML/UWP tool tips.
 			elif obj.UIAElement.cachedClassName == "ToolTip" and obj.UIAElement.cachedFrameworkID == "XAML":
-				clsList.insert(0, UWPToolTip)
+				# Just in case XAML tool tip support is part of NVDA...
+				import NVDAObjects.UIA
+				if not hasattr(NVDAObjects.UIA, "XAMLToolTip"):
+					clsList.insert(0, XAMLToolTip)
 
 	# Record UIA property info about an object if debug logging is enabled.
 	def uiaDebugLogging(self, obj, event=None):
@@ -219,6 +221,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		# Non-English locales does not fire item selected event for looping selector unless navigator is first set to it.
 		if isinstance(obj, UIA) and obj.UIAElement.cachedClassName == "CustomLoopingSelector":
 			api.setNavigatorObject(obj.simpleFirstChild)
+		# #46: do not announce "unknown" objects from app launcher (quick link menu is affected by this).
+		if obj.windowClassName in ("LauncherTipWnd", "ApplicationManager_DesktopShellWindow"): return
 		nextHandler()
 
 	def event_nameChange(self, obj, nextHandler):
